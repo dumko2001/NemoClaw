@@ -9,7 +9,7 @@ if [ -n "${PROXY_URL}" ]; then
   curl -s "${PROXY_URL}/v1/chat/completions" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${NVIDIA_API_KEY:-dummy}" \
-    -d '{"model":"nvidia/nemotron-3-super","messages":[{"role":"user","content":"say hello"}]}'
+    -d '{"model":"nvidia/nemotron-3-super-120b-a12b","messages":[{"role":"user","content":"say hello"}]}'
   echo -e "\n"
 
   echo "--- MiniMax M2.5 (curated, no extras) ---"
