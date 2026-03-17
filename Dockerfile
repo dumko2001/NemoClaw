@@ -55,9 +55,12 @@ RUN mkdir -p /sandbox/.openclaw-data/agents/main/agent \
     && ln -s /sandbox/.openclaw-data/update-check.json /sandbox/.openclaw/update-check.json \
     && chown -R sandbox:sandbox /sandbox/.openclaw /sandbox/.openclaw-data
 
-# Install OpenClaw CLI and PyYAML for blueprint runner (single layer)
+# Install OpenClaw CLI and set up Python venv with PyYAML
 RUN npm install -g openclaw@2026.3.11 \
-    && pip3 install --no-cache-dir --break-system-packages "pyyaml==6.0.3"
+    && python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir "pyyaml==6.0.3"
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy built plugin and blueprint into the sandbox
 COPY --from=builder /opt/nemoclaw/dist/ /opt/nemoclaw/dist/
