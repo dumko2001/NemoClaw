@@ -21,9 +21,9 @@ function getLocalProviderBaseUrl(provider) {
 function getLocalProviderHealthCheck(provider) {
   switch (provider) {
     case "vllm-local":
-      return "curl -sf http://localhost:8000/v1/models 2>/dev/null";
+      return ["curl", "-sf", "http://localhost:8000/v1/models"];
     case "ollama-local":
-      return "curl -sf http://localhost:11434/api/tags 2>/dev/null";
+      return ["curl", "-sf", "http://localhost:11434/api/tags"];
     default:
       return null;
   }
@@ -32,9 +32,27 @@ function getLocalProviderHealthCheck(provider) {
 function getLocalProviderContainerReachabilityCheck(provider) {
   switch (provider) {
     case "vllm-local":
-      return `docker run --rm --add-host host.openshell.internal:host-gateway ${CONTAINER_REACHABILITY_IMAGE} -sf http://host.openshell.internal:8000/v1/models 2>/dev/null`;
+      return [
+        "docker",
+        "run",
+        "--rm",
+        "--add-host",
+        "host.openshell.internal:host-gateway",
+        CONTAINER_REACHABILITY_IMAGE,
+        "-sf",
+        "http://host.openshell.internal:8000/v1/models",
+      ];
     case "ollama-local":
-      return `docker run --rm --add-host host.openshell.internal:host-gateway ${CONTAINER_REACHABILITY_IMAGE} -sf http://host.openshell.internal:11434/api/tags 2>/dev/null`;
+      return [
+        "docker",
+        "run",
+        "--rm",
+        "--add-host",
+        "host.openshell.internal:host-gateway",
+        CONTAINER_REACHABILITY_IMAGE,
+        "-sf",
+        "http://host.openshell.internal:11434/api/tags",
+      ];
     default:
       return null;
   }
@@ -103,7 +121,7 @@ function parseOllamaList(output) {
 }
 
 function getOllamaModelOptions(runCapture) {
-  const output = runCapture("ollama list 2>/dev/null", { ignoreError: true });
+  const output = runCapture(["ollama", "list"], { ignoreError: true });
   const parsed = parseOllamaList(output);
   if (parsed.length > 0) {
     return parsed;
@@ -123,7 +141,11 @@ function getOllamaWarmupCommand(model, keepAlive = "15m") {
     stream: false,
     keep_alive: keepAlive,
   });
-  return `nohup curl -s http://localhost:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} >/dev/null 2>&1 &`;
+  return [
+    "bash",
+    "-c",
+    `nohup curl -s http://localhost:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} >/dev/null 2>&1 &`,
+  ];
 }
 
 function getOllamaProbeCommand(model, timeoutSeconds = 120, keepAlive = "15m") {
@@ -133,7 +155,17 @@ function getOllamaProbeCommand(model, timeoutSeconds = 120, keepAlive = "15m") {
     stream: false,
     keep_alive: keepAlive,
   });
-  return `curl -sS --max-time ${timeoutSeconds} http://localhost:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} 2>/dev/null`;
+  return [
+    "curl",
+    "-sS",
+    "--max-time",
+    String(timeoutSeconds),
+    "http://localhost:11434/api/generate",
+    "-H",
+    "Content-Type: application/json",
+    "-d",
+    payload,
+  ];
 }
 
 function validateOllamaModel(model, runCapture) {

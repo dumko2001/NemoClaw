@@ -27,7 +27,7 @@ function detectGpu() {
   // Try NVIDIA first — query VRAM
   try {
     const output = runCapture(
-      "nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits",
+      ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
       { ignoreError: true }
     );
     if (output) {
@@ -49,15 +49,21 @@ function detectGpu() {
   // Fallback: DGX Spark (GB10) — VRAM not queryable due to unified memory architecture
   try {
     const nameOutput = runCapture(
-      "nvidia-smi --query-gpu=name --format=csv,noheader,nounits",
+      ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader,nounits"],
       { ignoreError: true }
     );
     if (nameOutput && nameOutput.includes("GB10")) {
       // GB10 has 128GB unified memory shared with Grace CPU — use system RAM
       let totalMemoryMB = 0;
       try {
-        const memLine = runCapture("free -m | awk '/Mem:/ {print $2}'", { ignoreError: true });
-        if (memLine) totalMemoryMB = parseInt(memLine.trim(), 10) || 0;
+        const freeOut = runCapture(["free", "-m"], { ignoreError: true });
+        if (freeOut) {
+          const memLine = freeOut.split("\n").find((l) => l.includes("Mem:"));
+          if (memLine) {
+            const parts = memLine.split(/\s+/);
+            totalMemoryMB = parseInt(parts[1], 10) || 0;
+          }
+        }
       } catch {}
       return {
         type: "nvidia",
@@ -74,7 +80,7 @@ function detectGpu() {
   if (process.platform === "darwin") {
     try {
       const spOutput = runCapture(
-        "system_profiler SPDisplaysDataType 2>/dev/null",
+        ["system_profiler", "SPDisplaysDataType"],
         { ignoreError: true }
       );
       if (spOutput) {
@@ -92,7 +98,7 @@ function detectGpu() {
           } else {
             // Apple Silicon shares system RAM — read total memory
             try {
-              const memBytes = runCapture("sysctl -n hw.memsize", { ignoreError: true });
+              const memBytes = runCapture(["sysctl", "-n", "hw.memsize"], { ignoreError: true });
               if (memBytes) memoryMB = Math.floor(parseInt(memBytes, 10) / 1024 / 1024);
             } catch {}
           }
@@ -121,7 +127,7 @@ function pullNimImage(model) {
     process.exit(1);
   }
   console.log(`  Pulling NIM image: ${image}`);
-  run(`docker pull ${shellQuote(image)}`);
+  run(["docker", "pull", image]);
   return image;
 }
 
@@ -134,13 +140,23 @@ function startNimContainer(sandboxName, model, port = 8000) {
   }
 
   // Stop any existing container with same name
-  const qn = shellQuote(name);
-  run(`docker rm -f ${qn} 2>/dev/null || true`, { ignoreError: true });
+  run(["docker", "rm", "-f", name], { ignoreError: true });
 
   console.log(`  Starting NIM container: ${name}`);
-  run(
-    `docker run -d --gpus all -p ${Number(port)}:8000 --name ${qn} --shm-size 16g ${shellQuote(image)}`
-  );
+  run([
+    "docker",
+    "run",
+    "-d",
+    "--gpus",
+    "all",
+    "-p",
+    `${port}:8000`,
+    "--name",
+    name,
+    "--shm-size",
+    "16g",
+    image,
+  ]);
   return name;
 }
 
@@ -152,7 +168,7 @@ function waitForNimHealth(port = 8000, timeout = 300) {
 
   while ((Date.now() - start) / 1000 < timeout) {
     try {
-      const result = runCapture(`curl -sf http://localhost:${safePort}/v1/models`, {
+      const result = runCapture(["curl", "-sf", `http://localhost:${port}/v1/models`], {
         ignoreError: true,
       });
       if (result) {
@@ -169,24 +185,26 @@ function waitForNimHealth(port = 8000, timeout = 300) {
 
 function stopNimContainer(sandboxName) {
   const name = containerName(sandboxName);
-  const qn = shellQuote(name);
   console.log(`  Stopping NIM container: ${name}`);
-  run(`docker stop ${qn} 2>/dev/null || true`, { ignoreError: true });
-  run(`docker rm ${qn} 2>/dev/null || true`, { ignoreError: true });
+  run(["docker", "stop", name], { ignoreError: true });
+  run(["docker", "rm", name], { ignoreError: true });
 }
 
 function nimStatus(sandboxName) {
   const name = containerName(sandboxName);
   try {
     const state = runCapture(
-      `docker inspect --format '{{.State.Status}}' ${shellQuote(name)} 2>/dev/null`,
+      ["docker", "inspect", "--format", "{{.State.Status}}", name],
       { ignoreError: true }
     );
     if (!state) return { running: false, container: name };
 
     let healthy = false;
     if (state === "running") {
-      const health = runCapture(`curl -sf http://localhost:8000/v1/models 2>/dev/null`, {
+      const registry = require("./registry");
+      const sandbox = registry.getSandbox(sandboxName);
+      const port = sandbox ? sandbox.nimPort || 8000 : 8000;
+      const health = runCapture(["curl", "-sf", `http://localhost:${port}/v1/models`], {
         ignoreError: true,
       });
       healthy = !!health;

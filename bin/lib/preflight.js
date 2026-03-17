@@ -30,10 +30,10 @@ async function checkPortAvailable(port, opts) {
     if (typeof o.lsofOutput === "string") {
       lsofOut = o.lsofOutput;
     } else {
-      const hasLsof = runCapture("command -v lsof", { ignoreError: true });
+      const hasLsof = runCapture(["which", "lsof"], { ignoreError: true });
       if (hasLsof) {
         lsofOut = runCapture(
-          `lsof -i :${p} -sTCP:LISTEN -P -n 2>/dev/null`,
+          ["lsof", "-i", `:${p}`, "-sTCP:LISTEN", "-P", "-n"],
           { ignoreError: true }
         );
       }

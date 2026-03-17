@@ -14,18 +14,58 @@ if (dockerHost) {
 }
 
 function run(cmd, opts = {}) {
-  const stdio = opts.stdio ?? ["ignore", "inherit", "inherit"];
-  const result = spawnSync("bash", ["-c", cmd], {
-    ...opts,
-    stdio,
+  if (!Array.isArray(cmd)) {
+    throw new Error(`Command must be an array of arguments (argv), got: ${typeof cmd}`);
+  }
+
+  const exe = cmd[0];
+  const args = cmd.slice(1);
+
+  const { env: extraEnv, ...rest } = opts;
+  const result = spawnSync(exe, args, {
+    stdio: rest.stdio || "inherit",
     cwd: ROOT,
-    env: { ...process.env, ...opts.env },
+    env: { ...process.env, ...extraEnv },
+    ...rest,
   });
+
   if (result.status !== 0 && !opts.ignoreError) {
-    console.error(`  Command failed (exit ${result.status}): ${cmd.slice(0, 80)}`);
+    const cmdStr = cmd.join(" ");
+    console.error(`  Command failed (exit ${result.status}): ${cmdStr.slice(0, 80)}`);
     process.exit(result.status || 1);
   }
   return result;
+}
+
+function runCapture(cmd, opts = {}) {
+  if (!Array.isArray(cmd)) {
+    throw new Error(`Command must be an array of arguments (argv), got: ${typeof cmd}`);
+  }
+
+  const exe = cmd[0];
+  const args = cmd.slice(1);
+
+  try {
+    const { env: extraEnv, stdio, encoding, ...rest } = opts;
+    const result = spawnSync(exe, args, {
+      cwd: ROOT,
+      env: { ...process.env, ...extraEnv },
+      stdio: stdio || ["pipe", "pipe", "pipe"],
+      encoding: encoding || "utf-8",
+      ...rest,
+    });
+
+    if (result.status !== 0 && !opts.ignoreError) {
+      throw new Error(`Command failed with status ${result.status}`);
+    }
+
+    const stdout = result.stdout || "";
+    // Ensure we have a string if encoding was null or overridden
+    return (typeof stdout === "string" ? stdout : stdout.toString("utf-8")).trim();
+  } catch (err) {
+    if (opts.ignoreError) return "";
+    throw err;
+  }
 }
 
 function runInteractive(cmd, opts = {}) {
@@ -36,26 +76,12 @@ function runInteractive(cmd, opts = {}) {
     cwd: ROOT,
     env: { ...process.env, ...opts.env },
   });
+
   if (result.status !== 0 && !opts.ignoreError) {
     console.error(`  Command failed (exit ${result.status}): ${cmd.slice(0, 80)}`);
     process.exit(result.status || 1);
   }
   return result;
-}
-
-function runCapture(cmd, opts = {}) {
-  try {
-    return execSync(cmd, {
-      ...opts,
-      encoding: "utf-8",
-      cwd: ROOT,
-      env: { ...process.env, ...opts.env },
-      stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
-  } catch (err) {
-    if (opts.ignoreError) return "";
-    throw err;
-  }
 }
 
 /**

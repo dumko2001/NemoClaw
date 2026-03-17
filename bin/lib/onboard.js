@@ -86,8 +86,9 @@ function hasStaleGateway(gwInfoOutput) {
   return typeof gwInfoOutput === "string" && gwInfoOutput.length > 0 && gwInfoOutput.includes("nemoclaw");
 }
 
-function streamSandboxCreate(command) {
-  const child = spawn("bash", ["-lc", command], {
+
+function streamSandboxCreate(exe, args) {
+  const child = spawn(exe, args, {
     cwd: ROOT,
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -164,7 +165,7 @@ function step(n, total, msg) {
 }
 
 function getInstalledOpenshellVersion(versionOutput = null) {
-  const output = String(versionOutput ?? runCapture("openshell -V", { ignoreError: true })).trim();
+  const output = String(versionOutput ?? runCapture(["openshell", "-V"], { ignoreError: true })).trim();
   const match = output.match(/openshell\s+([0-9]+\.[0-9]+\.[0-9]+)/i);
   if (!match) return null;
   return match[1];
@@ -229,7 +230,7 @@ async function promptOllamaModel() {
 
 function isDockerRunning() {
   try {
-    runCapture("docker info", { ignoreError: false });
+    runCapture(["docker", "info"], { ignoreError: false });
     return true;
   } catch {
     return false;
@@ -237,13 +238,13 @@ function isDockerRunning() {
 }
 
 function getContainerRuntime() {
-  const info = runCapture("docker info 2>/dev/null", { ignoreError: true });
+  const info = runCapture(["docker", "info"], { ignoreError: true });
   return inferContainerRuntime(info);
 }
 
 function isOpenshellInstalled() {
   try {
-    runCapture("command -v openshell");
+    runCapture(["which", "openshell"]);
     return true;
   } catch {
     return false;
@@ -292,7 +293,7 @@ function sleep(seconds) {
 
 function waitForSandboxReady(sandboxName, attempts = 10, delaySeconds = 2) {
   for (let i = 0; i < attempts; i += 1) {
-    const exists = runCapture(`openshell sandbox get "${sandboxName}" 2>/dev/null`, { ignoreError: true });
+    const exists = runCapture(["openshell", "sandbox", "get", sandboxName], { ignoreError: true });
     if (exists) return true;
     sleep(delaySeconds);
   }
@@ -369,7 +370,7 @@ async function preflight() {
       process.exit(1);
     }
   }
-  console.log(`  ✓ openshell CLI: ${runCapture("openshell --version 2>/dev/null || echo unknown", { ignoreError: true })}`);
+  console.log(`  ✓ openshell CLI: ${runCapture(["openshell", "--version"], { ignoreError: true }) || "unknown"}`);
   if (openshellInstall.futureShellPathHint) {
     console.log(`  Note: openshell was installed to ${openshellInstall.localBin} for this onboarding run.`);
     console.log(`  Future shells may still need: ${openshellInstall.futureShellPathHint}`);
@@ -380,11 +381,11 @@ async function preflight() {
   // A previous onboard run may have left the gateway container and port
   // forward running.  If a NemoClaw-owned gateway is still present, tear
   // it down so the port check below doesn't fail on our own leftovers.
-  const gwInfo = runCapture("openshell gateway info -g nemoclaw 2>/dev/null", { ignoreError: true });
+  const gwInfo = runCapture(["openshell", "gateway", "info", "-g", "nemoclaw"], { ignoreError: true });
   if (hasStaleGateway(gwInfo)) {
     console.log("  Cleaning up previous NemoClaw session...");
-    run("openshell forward stop 18789 2>/dev/null || true", { ignoreError: true });
-    run("openshell gateway destroy -g nemoclaw 2>/dev/null || true", { ignoreError: true });
+    run(["openshell", "forward", "stop", "18789"], { ignoreError: true });
+    run(["openshell", "gateway", "destroy", "-g", "nemoclaw"], { ignoreError: true });
     console.log("  ✓ Previous session cleaned up");
   }
 
@@ -443,7 +444,7 @@ async function startGateway(gpu) {
   step(2, 7, "Starting OpenShell gateway");
 
   // Destroy old gateway
-  run("openshell gateway destroy -g nemoclaw 2>/dev/null || true", { ignoreError: true });
+  run(["openshell", "gateway", "destroy", "-g", "nemoclaw"], { ignoreError: true });
 
   const gwArgs = ["--name", "nemoclaw"];
   // Do NOT pass --gpu here. On DGX Spark (and most GPU hosts), inference is
@@ -462,14 +463,14 @@ async function startGateway(gpu) {
     console.log(`  Using pinned OpenShell gateway image: ${stableGatewayImage}`);
   }
 
-  run(`openshell gateway start ${gwArgs.join(" ")}`, {
+  run(["openshell", "gateway", "start", ...gwArgs], {
     ignoreError: false,
     env: gatewayEnv,
   });
 
   // Verify health
   for (let i = 0; i < 5; i++) {
-    const status = runCapture("openshell status 2>&1", { ignoreError: true });
+    const status = runCapture(["openshell", "status"], { ignoreError: true });
     if (status.includes("Connected")) {
       console.log("  ✓ Gateway is healthy");
       break;
@@ -485,7 +486,7 @@ async function startGateway(gpu) {
   const runtime = getContainerRuntime();
   if (shouldPatchCoredns(runtime)) {
     console.log("  Patching CoreDNS for Colima...");
-    run(`bash "${path.join(SCRIPTS, "fix-coredns.sh")}" nemoclaw 2>&1 || true`, { ignoreError: true });
+    run(["bash", path.join(SCRIPTS, "fix-coredns.sh"), "nemoclaw"], { ignoreError: true });
   }
   // Give DNS a moment to propagate
   sleep(5);
@@ -529,7 +530,7 @@ async function createSandbox(gpu) {
       }
     }
     // Destroy old sandbox
-    run(`openshell sandbox delete "${sandboxName}" 2>/dev/null || true`, { ignoreError: true });
+    run(["openshell", "sandbox", "delete", sandboxName], { ignoreError: true });
     registry.removeSandbox(sandboxName);
   }
 
@@ -538,46 +539,46 @@ async function createSandbox(gpu) {
   const os = require("os");
   const buildCtx = fs.mkdtempSync(path.join(os.tmpdir(), "nemoclaw-build-"));
   fs.copyFileSync(path.join(ROOT, "Dockerfile"), path.join(buildCtx, "Dockerfile"));
-  run(`cp -r "${path.join(ROOT, "nemoclaw")}" "${buildCtx}/nemoclaw"`);
-  run(`cp -r "${path.join(ROOT, "nemoclaw-blueprint")}" "${buildCtx}/nemoclaw-blueprint"`);
-  run(`cp -r "${path.join(ROOT, "scripts")}" "${buildCtx}/scripts"`);
-  run(`rm -rf "${buildCtx}/nemoclaw/node_modules"`, { ignoreError: true });
+  run(["cp", "-r", path.join(ROOT, "nemoclaw"), path.join(buildCtx, "nemoclaw")]);
+  run(["cp", "-r", path.join(ROOT, "nemoclaw-blueprint"), path.join(buildCtx, "nemoclaw-blueprint")]);
+  run(["cp", "-r", path.join(ROOT, "scripts"), path.join(buildCtx, "scripts")]);
+  run(["rm", "-rf", path.join(buildCtx, "nemoclaw", "node_modules")], { ignoreError: true });
 
   // Create sandbox (use -- echo to avoid dropping into interactive shell)
   // Pass the base policy so sandbox starts in proxy mode (required for policy updates later)
   const basePolicyPath = path.join(ROOT, "nemoclaw-blueprint", "policies", "openclaw-sandbox.yaml");
   const createArgs = [
-    `--from "${buildCtx}/Dockerfile"`,
-    `--name "${sandboxName}"`,
-    `--policy "${basePolicyPath}"`,
+    "sandbox",
+    "create",
+    "--from",
+    path.join(buildCtx, "Dockerfile"),
+    "--name",
+    sandboxName,
+    "--policy",
+    basePolicyPath,
   ];
   // --gpu is intentionally omitted. See comment in startGateway().
 
   console.log(`  Creating sandbox '${sandboxName}' (this takes a few minutes on first run)...`);
-  const chatUiUrl = process.env.CHAT_UI_URL || 'http://127.0.0.1:18789';
-  const envArgs = [`CHAT_UI_URL=${shellQuote(chatUiUrl)}`];
-  if (process.env.NVIDIA_API_KEY) {
-    envArgs.push(`NVIDIA_API_KEY=${shellQuote(process.env.NVIDIA_API_KEY)}`);
-  }
-  const discordToken = getCredential("DISCORD_BOT_TOKEN") || process.env.DISCORD_BOT_TOKEN;
-  if (discordToken) {
-    envArgs.push(`DISCORD_BOT_TOKEN=${shellQuote(discordToken)}`);
-  }
-  const slackToken = getCredential("SLACK_BOT_TOKEN") || process.env.SLACK_BOT_TOKEN;
-  if (slackToken) {
-    envArgs.push(`SLACK_BOT_TOKEN=${shellQuote(slackToken)}`);
-  }
+  const chatUiUrl = process.env.CHAT_UI_URL || "http://127.0.0.1:18789";
+  const envArgs = [`CHAT_UI_URL=${chatUiUrl}`];
+  // Secrets (NVIDIA_API_KEY, tokens) are omitted here to avoid argv exposure.
+  // They are injected securely via 'openshell sandbox connect' in Step 6.
 
   // Run without piping through awk — the pipe masked non-zero exit codes
   // from openshell because bash returns the status of the last pipeline
   // command (awk, always 0) unless pipefail is set. Removing the pipe
   // lets the real exit code flow through to run().
-  const createResult = await streamSandboxCreate(
-    `openshell sandbox create ${createArgs.join(" ")} -- env ${envArgs.join(" ")} nemoclaw-start 2>&1`
-  );
+  const createResult = await streamSandboxCreate("openshell", [
+    ...createArgs,
+    "--",
+    "env",
+    ...envArgs,
+    "nemoclaw-start",
+  ]);
 
   // Clean up build context regardless of outcome
-  run(`rm -rf "${buildCtx}"`, { ignoreError: true });
+  run(["rm", "-rf", buildCtx], { ignoreError: true });
 
   if (createResult.status !== 0) {
     console.error("");
@@ -598,18 +599,18 @@ async function createSandbox(gpu) {
   console.log("  Waiting for sandbox to become ready...");
   let ready = false;
   for (let i = 0; i < 30; i++) {
-    const list = runCapture("openshell sandbox list 2>&1", { ignoreError: true });
+    const list = runCapture(["openshell", "sandbox", "list"], { ignoreError: true });
     if (isSandboxReady(list, sandboxName)) {
       ready = true;
       break;
     }
-    require("child_process").spawnSync("sleep", ["2"]);
+    sleep(2);
   }
 
   if (!ready) {
     // Clean up the orphaned sandbox so the next onboard retry with the same
     // name doesn't fail on "sandbox already exists".
-    const delResult = run(`openshell sandbox delete "${sandboxName}" 2>/dev/null || true`, { ignoreError: true });
+    const delResult = run(["openshell", "sandbox", "delete", sandboxName], { ignoreError: true });
     console.error("");
     console.error(`  Sandbox '${sandboxName}' was created but did not become ready within 60s.`);
     if (delResult.status === 0) {
@@ -625,9 +626,9 @@ async function createSandbox(gpu) {
   // Release any stale forward on port 18789 before claiming it for the new sandbox.
   // A previous onboard run may have left the port forwarded to a different sandbox,
   // which would silently prevent the new sandbox's dashboard from being reachable.
-  run(`openshell forward stop 18789 2>/dev/null || true`, { ignoreError: true });
+  run(["openshell", "forward", "stop", "18789"], { ignoreError: true });
   // Forward dashboard port to the new sandbox
-  run(`openshell forward start --background 18789 "${sandboxName}"`, { ignoreError: true });
+  run(["openshell", "forward", "start", "--background", "18789", sandboxName], { ignoreError: true });
 
   // Register only after confirmed ready — prevents phantom entries
   registry.registerSandbox({
@@ -649,9 +650,9 @@ async function setupNim(sandboxName, gpu) {
   let nimContainer = null;
 
   // Detect local inference options
-  const hasOllama = !!runCapture("command -v ollama", { ignoreError: true });
-  const ollamaRunning = !!runCapture("curl -sf http://localhost:11434/api/tags 2>/dev/null", { ignoreError: true });
-  const vllmRunning = !!runCapture("curl -sf http://localhost:8000/v1/models 2>/dev/null", { ignoreError: true });
+  const hasOllama = !!runCapture(["which", "ollama"], { ignoreError: true });
+  const ollamaRunning = !!runCapture(["curl", "-sf", "http://localhost:11434/api/tags"], { ignoreError: true });
+  const vllmRunning = !!runCapture(["curl", "-sf", "http://localhost:8000/v1/models"], { ignoreError: true });
   const requestedProvider = isNonInteractive() ? getNonInteractiveProvider() : null;
   const requestedModel = isNonInteractive() ? getNonInteractiveModel(requestedProvider || "cloud") : null;
   // Build options list — only show local options with NEMOCLAW_EXPERIMENTAL=1
@@ -769,7 +770,15 @@ async function setupNim(sandboxName, gpu) {
     } else if (selected.key === "ollama") {
       if (!ollamaRunning) {
         console.log("  Starting Ollama...");
-        run("OLLAMA_HOST=0.0.0.0:11434 ollama serve > /dev/null 2>&1 &", { ignoreError: true });
+        // Use bash -c explicitly for backgrounding
+        run(
+          [
+            "bash",
+            "-c",
+            "OLLAMA_HOST=0.0.0.0:11434 ollama serve > /dev/null 2>&1 &",
+          ],
+          { ignoreError: true }
+        );
         sleep(2);
       }
       console.log("  ✓ Using Ollama on localhost:11434");
@@ -781,10 +790,17 @@ async function setupNim(sandboxName, gpu) {
       }
     } else if (selected.key === "install-ollama") {
       console.log("  Installing Ollama via Homebrew...");
-      run("brew install ollama", { ignoreError: true });
+      run(["brew", "install", "ollama"], { ignoreError: true });
       console.log("  Starting Ollama...");
-      run("OLLAMA_HOST=0.0.0.0:11434 ollama serve > /dev/null 2>&1 &", { ignoreError: true });
-        sleep(2);
+      run(
+        [
+          "bash",
+          "-c",
+          "OLLAMA_HOST=0.0.0.0:11434 ollama serve > /dev/null 2>&1 &",
+        ],
+        { ignoreError: true }
+      );
+      sleep(2);
       console.log("  ✓ Using Ollama on localhost:11434");
       provider = "ollama-local";
       if (isNonInteractive()) {
@@ -796,7 +812,7 @@ async function setupNim(sandboxName, gpu) {
       console.log("  ✓ Using existing vLLM on localhost:8000");
       provider = "vllm-local";
       // Query vLLM for the actual model ID
-      const vllmModelsRaw = runCapture("curl -sf http://localhost:8000/v1/models 2>/dev/null", { ignoreError: true });
+      const vllmModelsRaw = runCapture(["curl", "-sf", "http://localhost:8000/v1/models"], { ignoreError: true });
       try {
         const vllmModels = JSON.parse(vllmModelsRaw);
         if (vllmModels.data && vllmModels.data.length > 0) {
@@ -847,13 +863,32 @@ async function setupInference(sandboxName, model, provider) {
   if (provider === "nvidia-nim") {
     // Create nvidia-nim provider
     run(
-      `openshell provider create --name nvidia-nim --type openai ` +
-      `--credential ${shellQuote("NVIDIA_API_KEY")} ` +
-      `--config "OPENAI_BASE_URL=https://integrate.api.nvidia.com/v1" 2>&1 || true`,
+      [
+        "openshell",
+        "provider",
+        "create",
+        "--name",
+        "nvidia-nim",
+        "--type",
+        "openai",
+        "--credential",
+        "NVIDIA_API_KEY",
+        "--config",
+        "OPENAI_BASE_URL=https://integrate.api.nvidia.com/v1",
+      ],
       { ignoreError: true }
     );
     run(
-      `openshell inference set --no-verify --provider nvidia-nim --model ${shellQuote(model)} 2>/dev/null || true`,
+      [
+        "openshell",
+        "inference",
+        "set",
+        "--no-verify",
+        "--provider",
+        "nvidia-nim",
+        "--model",
+        model,
+      ],
       { ignoreError: true }
     );
   } else if (provider === "vllm-local") {
@@ -864,17 +899,32 @@ async function setupInference(sandboxName, model, provider) {
     }
     const baseUrl = getLocalProviderBaseUrl(provider);
     run(
-      `OPENAI_API_KEY=dummy ` +
-      `openshell provider create --name vllm-local --type openai ` +
-      `--credential "OPENAI_API_KEY" ` +
-      `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || ` +
-      `OPENAI_API_KEY=dummy ` +
-      `openshell provider update vllm-local --credential "OPENAI_API_KEY" ` +
-      `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || true`,
-      { ignoreError: true }
+      [
+        "openshell",
+        "provider",
+        "create",
+        "--name",
+        "vllm-local",
+        "--type",
+        "openai",
+        "--credential",
+        "OPENAI_API_KEY",
+        "--config",
+        `OPENAI_BASE_URL=${baseUrl}`,
+      ],
+      { ignoreError: true, env: { OPENAI_API_KEY: "dummy" } }
     );
     run(
-      `openshell inference set --no-verify --provider vllm-local --model ${shellQuote(model)} 2>/dev/null || true`,
+      [
+        "openshell",
+        "inference",
+        "set",
+        "--no-verify",
+        "--provider",
+        "vllm-local",
+        "--model",
+        model,
+      ],
       { ignoreError: true }
     );
   } else if (provider === "ollama-local") {
@@ -886,17 +936,32 @@ async function setupInference(sandboxName, model, provider) {
     }
     const baseUrl = getLocalProviderBaseUrl(provider);
     run(
-      `OPENAI_API_KEY=ollama ` +
-      `openshell provider create --name ollama-local --type openai ` +
-      `--credential "OPENAI_API_KEY" ` +
-      `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || ` +
-      `OPENAI_API_KEY=ollama ` +
-      `openshell provider update ollama-local --credential "OPENAI_API_KEY" ` +
-      `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || true`,
-      { ignoreError: true }
+      [
+        "openshell",
+        "provider",
+        "create",
+        "--name",
+        "ollama-local",
+        "--type",
+        "openai",
+        "--credential",
+        "OPENAI_API_KEY",
+        "--config",
+        `OPENAI_BASE_URL=${baseUrl}`,
+      ],
+      { ignoreError: true, env: { OPENAI_API_KEY: "ollama" } }
     );
     run(
-      `openshell inference set --no-verify --provider ollama-local --model ${shellQuote(model)} 2>/dev/null || true`,
+      [
+        "openshell",
+        "inference",
+        "set",
+        "--no-verify",
+        "--provider",
+        "ollama-local",
+        "--model",
+        model,
+      ],
       { ignoreError: true }
     );
     console.log(`  Priming Ollama model: ${model}`);
@@ -919,6 +984,19 @@ async function setupOpenclaw(sandboxName, model, provider) {
 
   const selectionConfig = getProviderSelectionConfig(provider, model);
   if (selectionConfig) {
+    // Inject secrets into the sandbox config
+    if (process.env.NVIDIA_API_KEY) {
+      selectionConfig.NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
+    }
+    const discordToken = getCredential("DISCORD_BOT_TOKEN") || process.env.DISCORD_BOT_TOKEN;
+    if (discordToken) {
+      selectionConfig.DISCORD_BOT_TOKEN = discordToken;
+    }
+    const slackToken = getCredential("SLACK_BOT_TOKEN") || process.env.SLACK_BOT_TOKEN;
+    if (slackToken) {
+      selectionConfig.SLACK_BOT_TOKEN = slackToken;
+    }
+
     const sandboxConfig = {
       ...selectionConfig,
       onboardedAt: new Date().toISOString(),
@@ -926,8 +1004,9 @@ async function setupOpenclaw(sandboxName, model, provider) {
     const script = buildSandboxConfigSyncScript(sandboxConfig);
     const scriptFile = writeSandboxConfigSyncFile(script);
     try {
-      run(`openshell sandbox connect "${sandboxName}" < ${shellQuote(scriptFile)}`, {
-        stdio: ["ignore", "ignore", "inherit"],
+      run(["openshell", "sandbox", "connect", sandboxName], {
+        input: fs.readFileSync(scriptFile),
+        stdio: ["pipe", "ignore", "inherit"],
       });
     } finally {
       fs.unlinkSync(scriptFile);

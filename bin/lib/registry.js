@@ -47,6 +47,7 @@ function registerSandbox(entry) {
     nimContainer: entry.nimContainer || null,
     provider: entry.provider || null,
     gpuEnabled: entry.gpuEnabled || false,
+    nimPort: entry.nimPort || 8000,
     policies: entry.policies || [],
   };
   if (!data.defaultSandbox) {

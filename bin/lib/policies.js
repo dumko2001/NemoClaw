@@ -77,14 +77,14 @@ function parseCurrentPolicy(raw) {
  * Build the openshell policy set command with properly quoted arguments.
  */
 function buildPolicySetCommand(policyFile, sandboxName) {
-  return `openshell policy set --policy ${shellQuote(policyFile)} --wait ${shellQuote(sandboxName)}`;
+  return ["openshell", "policy", "set", "--policy", policyFile, "--wait", sandboxName];
 }
 
 /**
  * Build the openshell policy get command with properly quoted arguments.
  */
 function buildPolicyGetCommand(sandboxName) {
-  return `openshell policy get --full ${shellQuote(sandboxName)} 2>/dev/null`;
+  return ["openshell", "policy", "get", "--full", sandboxName];
 }
 
 function applyPreset(sandboxName, presetName) {
