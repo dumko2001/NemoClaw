@@ -649,7 +649,7 @@ async function setupNim(sandboxName, gpu) {
         run("OLLAMA_HOST=0.0.0.0:11434 ollama serve > /dev/null 2>&1 &", { ignoreError: true });
         sleep(2);
       }
-      console.log("  ✓ Using Ollama on localhost:11434");
+      console.log("  ✓ Using Ollama on 127.0.0.1:11434");
       provider = "ollama-local";
       if (isNonInteractive()) {
         model = requestedModel || getDefaultOllamaModel(runCapture);
@@ -662,7 +662,7 @@ async function setupNim(sandboxName, gpu) {
       console.log("  Starting Ollama...");
       run("OLLAMA_HOST=0.0.0.0:11434 ollama serve > /dev/null 2>&1 &", { ignoreError: true });
         sleep(2);
-      console.log("  ✓ Using Ollama on localhost:11434");
+      console.log("  ✓ Using Ollama on 127.0.0.1:11434");
       provider = "ollama-local";
       if (isNonInteractive()) {
         model = requestedModel || getDefaultOllamaModel(runCapture);
@@ -670,7 +670,7 @@ async function setupNim(sandboxName, gpu) {
         model = await promptOllamaModel();
       }
     } else if (selected.key === "vllm") {
-      console.log("  ✓ Using existing vLLM on localhost:8000");
+      console.log("  ✓ Using existing vLLM on 127.0.0.1:8000");
       provider = "vllm-local";
       model = "vllm-local";
     }

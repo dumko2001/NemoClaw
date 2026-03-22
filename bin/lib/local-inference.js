@@ -21,9 +21,9 @@ function getLocalProviderBaseUrl(provider) {
 function getLocalProviderHealthCheck(provider) {
   switch (provider) {
     case "vllm-local":
-      return "curl -sf http://localhost:8000/v1/models 2>/dev/null";
+      return "curl -sf http://127.0.0.1:8000/v1/models 2>/dev/null";
     case "ollama-local":
-      return "curl -sf http://localhost:11434/api/tags 2>/dev/null";
+      return "curl -sf http://127.0.0.1:11434/api/tags 2>/dev/null";
     default:
       return null;
   }
@@ -52,12 +52,12 @@ function validateLocalProvider(provider, runCapture) {
       case "vllm-local":
         return {
           ok: false,
-          message: "Local vLLM was selected, but nothing is responding on http://localhost:8000.",
+          message: "Local vLLM was selected, but nothing is responding on http://127.0.0.1:8000.",
         };
       case "ollama-local":
         return {
           ok: false,
-          message: "Local Ollama was selected, but nothing is responding on http://localhost:11434.",
+          message: "Local Ollama was selected, but nothing is responding on http://127.0.0.1:11434.",
         };
       default:
         return { ok: false, message: "The selected local inference provider is unavailable." };
@@ -79,13 +79,13 @@ function validateLocalProvider(provider, runCapture) {
       return {
         ok: false,
         message:
-          "Local vLLM is responding on localhost, but containers cannot reach http://host.openshell.internal:8000. Ensure the server is reachable from containers, not only from the host shell.",
+          "Local vLLM is responding on 127.0.0.1, but containers cannot reach http://host.openshell.internal:8000. Ensure the server is reachable from containers, not only from the host shell.",
       };
     case "ollama-local":
       return {
         ok: false,
         message:
-          "Local Ollama is responding on localhost, but containers cannot reach http://host.openshell.internal:11434. Ensure Ollama listens on 0.0.0.0:11434 instead of 127.0.0.1 so sandboxes can reach it.",
+          "Local Ollama is responding on 127.0.0.1, but containers cannot reach http://host.openshell.internal:11434. Ensure Ollama listens on 0.0.0.0:11434 instead of 127.0.0.1 so sandboxes can reach it.",
       };
     default:
       return { ok: false, message: "The selected local inference provider is unavailable from containers." };
@@ -123,7 +123,7 @@ function getOllamaWarmupCommand(model, keepAlive = "15m") {
     stream: false,
     keep_alive: keepAlive,
   });
-  return `nohup curl -s http://localhost:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} >/dev/null 2>&1 &`;
+  return `nohup curl -s http://127.0.0.1:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} >/dev/null 2>&1 &`;
 }
 
 function getOllamaProbeCommand(model, timeoutSeconds = 120, keepAlive = "15m") {
@@ -133,7 +133,7 @@ function getOllamaProbeCommand(model, timeoutSeconds = 120, keepAlive = "15m") {
     stream: false,
     keep_alive: keepAlive,
   });
-  return `curl -sS --max-time ${timeoutSeconds} http://localhost:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} 2>/dev/null`;
+  return `curl -sS --max-time ${timeoutSeconds} http://127.0.0.1:11434/api/generate -H 'Content-Type: application/json' -d ${shellQuote(payload)} 2>/dev/null`;
 }
 
 function validateOllamaModel(model, runCapture) {

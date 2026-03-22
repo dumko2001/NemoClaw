@@ -37,7 +37,7 @@ describe("local inference helpers", () => {
   it("returns the expected health check command for ollama-local", () => {
     assert.equal(
       getLocalProviderHealthCheck("ollama-local"),
-      "curl -sf http://localhost:11434/api/tags 2>/dev/null",
+      "curl -sf http://127.0.0.1:11434/api/tags 2>/dev/null",
     );
   });
 
@@ -61,7 +61,7 @@ describe("local inference helpers", () => {
   it("returns a clear error when ollama-local is unavailable", () => {
     const result = validateLocalProvider("ollama-local", () => "");
     assert.equal(result.ok, false);
-    assert.match(result.message, /http:\/\/localhost:11434/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:11434/);
   });
 
   it("returns a clear error when ollama-local is not reachable from containers", () => {
@@ -78,7 +78,7 @@ describe("local inference helpers", () => {
   it("returns a clear error when vllm-local is unavailable", () => {
     const result = validateLocalProvider("vllm-local", () => "");
     assert.equal(result.ok, false);
-    assert.match(result.message, /http:\/\/localhost:8000/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:8000/);
   });
 
   it("parses model names from ollama list output", () => {
@@ -121,14 +121,14 @@ describe("local inference helpers", () => {
 
   it("builds a background warmup command for ollama models", () => {
     const command = getOllamaWarmupCommand("nemotron-3-nano:30b");
-    assert.match(command, /^nohup curl -s http:\/\/localhost:11434\/api\/generate /);
+    assert.match(command, /^nohup curl -s http:\/\/127\.0\.0\.1:11434\/api\/generate /);
     assert.match(command, /"model":"nemotron-3-nano:30b"/);
     assert.match(command, /"keep_alive":"15m"/);
   });
 
   it("builds a foreground probe command for ollama models", () => {
     const command = getOllamaProbeCommand("nemotron-3-nano:30b");
-    assert.match(command, /^curl -sS --max-time 120 http:\/\/localhost:11434\/api\/generate /);
+    assert.match(command, /^curl -sS --max-time 120 http:\/\/127\.0\.0\.1:11434\/api\/generate /);
     assert.match(command, /"model":"nemotron-3-nano:30b"/);
   });
 
