@@ -368,7 +368,7 @@ install_openshell() {
   elif command -v shasum >/dev/null 2>&1; then
     echo "${EXPECTED_SHA}  $tmpdir/$ASSET" | shasum -a 256 -c -
   else
-    warn "sha256sum not found, skipping checksum verification"
+    fail "sha256sum or shasum not found. Cannot verify binary integrity."
   fi
 
   tar xzf "$tmpdir/$ASSET" -C "$tmpdir"

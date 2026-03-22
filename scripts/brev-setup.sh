@@ -99,7 +99,16 @@ if ! command -v openshell >/dev/null 2>&1; then
   tmpdir="$(mktemp -d)"
   GH_TOKEN="${GITHUB_TOKEN:-}" gh release download "$OPENSHELL_VERSION" --repo NVIDIA/OpenShell \
     --pattern "$ASSET" --dir "$tmpdir"
-  echo "${EXPECTED_SHA}  $tmpdir/$ASSET" | sha256sum -c -
+
+  # Verify checksum
+  if command -v sha256sum > /dev/null 2>&1; then
+    echo "${EXPECTED_SHA}  $tmpdir/$ASSET" | sha256sum -c -
+  elif command -v shasum > /dev/null 2>&1; then
+    echo "${EXPECTED_SHA}  $tmpdir/$ASSET" | shasum -a 256 -c -
+  else
+    fail "sha256sum or shasum not found. Cannot verify binary integrity."
+  fi
+
   tar xzf "$tmpdir/$ASSET" -C "$tmpdir"
   sudo install -m 755 "$tmpdir/openshell" /usr/local/bin/openshell
   rm -rf "$tmpdir"
@@ -126,7 +135,16 @@ if ! command -v cloudflared >/dev/null 2>&1; then
   esac
   tmpdir=$(mktemp -d)
   curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${CF_BIN_ARCH}" -o "$tmpdir/cloudflared"
-  echo "${EXPECTED_SHA}  $tmpdir/cloudflared" | sha256sum -c -
+
+  # Verify checksum
+  if command -v sha256sum >/dev/null 2>&1; then
+    echo "${EXPECTED_SHA}  $tmpdir/cloudflared" | sha256sum -c -
+  elif command -v shasum >/dev/null 2>&1; then
+    echo "${EXPECTED_SHA}  $tmpdir/cloudflared" | shasum -a 256 -c -
+  else
+    fail "sha256sum or shasum not found. Cannot verify binary integrity."
+  fi
+
   sudo install -m 755 "$tmpdir/cloudflared" /usr/local/bin/cloudflared
   rm -rf "$tmpdir"
   info "cloudflared $(cloudflared --version 2>&1 | head -1) installed"
