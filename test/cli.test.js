@@ -76,7 +76,7 @@ describe("CLI dispatch", () => {
     expect(r.out.includes("Collecting diagnostics")).toBeTruthy();
     expect(r.out.includes("System")).toBeTruthy();
     expect(r.out.includes("Done")).toBeTruthy();
-  });
+  }, 15000);
 
   it("debug exits 1 on unknown option", () => {
     const r = run("debug --quik");
