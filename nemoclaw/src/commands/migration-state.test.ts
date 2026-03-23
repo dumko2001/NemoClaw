@@ -43,7 +43,7 @@ vi.mock("node:fs", async (importOriginal) => {
             current = "/";
             continue;
           }
-          current = path.join(current, part);
+          current = path.posix.join(current, part);
           if (!store.has(current)) {
             addDir(current);
           }

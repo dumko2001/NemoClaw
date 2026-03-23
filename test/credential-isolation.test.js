@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(import.meta.dirname, "..");
 const CLI_PATH = path.join(ROOT, "bin/nemoclaw.js");
 
 describe("credential-isolation (static analysis)", () => {
