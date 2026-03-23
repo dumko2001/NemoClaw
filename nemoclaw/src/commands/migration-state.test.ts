@@ -898,7 +898,7 @@ describe("commands/migration-state", () => {
       }
     });
 
-    it("restores external roots from snapshot", () => {
+    it("restores external roots from snapshot", async () => {
       const logger = makeLogger();
       const origHome = process.env.HOME;
       process.env.HOME = "/home/user";
@@ -927,6 +927,7 @@ describe("commands/migration-state", () => {
         addFile("/snapshots/snap1/snapshot.json", JSON.stringify(manifest));
         addDir("/snapshots/snap1/openclaw");
         addDir("/snapshots/snap1/external/ws-1");
+        addFile("/snapshots/snap1/external/ws-1/new-file.txt", "new-content");
 
         // Setup existing sourcePath
         addDir("/home/user/myws");
@@ -936,6 +937,54 @@ describe("commands/migration-state", () => {
         expect(result).toBe(true);
         expect(logger.info).toHaveBeenCalledWith(
           expect.stringContaining("Restored external workspace to /home/user/myws"),
+        );
+        const fs = await import("node:fs");
+        expect(fs.readFileSync("/home/user/myws/new-file.txt")).toBe("new-content");
+      } finally {
+        if (origHome === undefined) {
+          delete process.env.HOME;
+        } else {
+          process.env.HOME = origHome;
+        }
+      }
+    });
+
+    it("returns false and logs error when external root snapshot directory is missing", () => {
+      const logger = makeLogger();
+      const origHome = process.env.HOME;
+      process.env.HOME = "/home/user";
+      try {
+        const manifest: SnapshotManifest = {
+          version: 2,
+          createdAt: "2026-03-01T00:00:00.000Z",
+          homeDir: "/home/user",
+          stateDir: "/home/user/.openclaw",
+          configPath: null,
+          hasExternalConfig: false,
+          externalRoots: [
+            {
+              id: "ws-1",
+              kind: "workspace",
+              label: "ws",
+              sourcePath: "/home/user/myws",
+              snapshotRelativePath: "external/ws-1",
+              sandboxPath: "/sandbox/.nemoclaw/migration/workspaces/ws-1",
+              symlinkPaths: [],
+              bindings: [],
+            },
+          ],
+          warnings: [],
+        };
+        addFile("/snapshots/snap1/snapshot.json", JSON.stringify(manifest));
+        addDir("/snapshots/snap1/openclaw");
+        // Intentionally missing /snapshots/snap1/external/ws-1
+
+        const result = restoreSnapshotToHost("/snapshots/snap1", logger);
+        expect(result).toBe(false);
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "Restoration aborted. The following snapshot components are missing:",
+          ),
         );
       } finally {
         if (origHome === undefined) {
