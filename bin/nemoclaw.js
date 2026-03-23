@@ -92,12 +92,12 @@ async function setup() {
   const key = await ensureApiKey();
   const { defaultSandbox } = registry.listSandboxes();
   const safeName = defaultSandbox && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(defaultSandbox) ? defaultSandbox : "";
-  run(`bash "${SCRIPTS}/setup.sh" ${shellQuote(safeName)}`, { env: { NVIDIA_API_KEY: key } });
+  run(`bash "${SCRIPTS}/setup.sh" ${shellQuote(safeName)}`, { env: { ...process.env, NVIDIA_API_KEY: key } });
 }
 
 async function setupSpark() {
   const key = await ensureApiKey();
-  run(`sudo -E bash "${SCRIPTS}/setup-spark.sh"`, { env: { NVIDIA_API_KEY: key } });
+  run(`sudo -E bash "${SCRIPTS}/setup-spark.sh"`, { env: { ...process.env, NVIDIA_API_KEY: key } });
 }
 
 async function deploy(instanceName) {
@@ -172,8 +172,8 @@ async function deploy(instanceName) {
   run(`ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR ${qname} 'mkdir -p /home/ubuntu/nemoclaw'`);
   run(`rsync -az --delete --exclude node_modules --exclude .git --exclude src -e "ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR" "${ROOT}/scripts" "${ROOT}/Dockerfile" "${ROOT}/nemoclaw" "${ROOT}/nemoclaw-blueprint" "${ROOT}/bin" "${ROOT}/package.json" ${qname}:/home/ubuntu/nemoclaw/`);
 
-  const envLines = [`NVIDIA_API_KEY=${shellQuote(process.env.NVIDIA_API_KEY || "")}`];
-  const ghToken = process.env.GITHUB_TOKEN;
+  const envLines = [`NVIDIA_API_KEY=${shellQuote(env.NVIDIA_API_KEY || "")}`];
+  const ghToken = env.GITHUB_TOKEN;
   if (ghToken) envLines.push(`GITHUB_TOKEN=${shellQuote(ghToken)}`);
   const tgToken = getCredential("TELEGRAM_BOT_TOKEN");
   if (tgToken) envLines.push(`TELEGRAM_BOT_TOKEN=${shellQuote(tgToken)}`);
