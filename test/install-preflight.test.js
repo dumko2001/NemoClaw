@@ -136,7 +136,7 @@ if [ "$1" = "clone" ]; then
   target="\${@: -1}"
   mkdir -p "$target/nemoclaw"
   echo '{"name":"nemoclaw","version":"0.1.0","dependencies":{"openclaw":"2026.3.11"}}' > "$target/package.json"
-  echo '{"name":"nemoclaw-plugin","version":"0.1.0"}' > "$target/nemoclaw/package.json"
+  echo '{"name":"nemoclaw-plugin","version":"0.1.0","scripts":{"build":"exit 0"}}' > "$target/nemoclaw/package.json"
   exit 0
 fi
 exit 0
@@ -230,7 +230,7 @@ if [ "$1" = "clone" ]; then
   target="\${@: -1}"
   mkdir -p "$target/nemoclaw"
   echo '{"name":"nemoclaw","version":"0.1.0","dependencies":{"openclaw":"2026.3.11"}}' > "$target/package.json"
-  echo '{"name":"nemoclaw-plugin","version":"0.1.0"}' > "$target/nemoclaw/package.json"
+  echo '{"name":"nemoclaw-plugin","version":"0.1.0","scripts":{"build":"exit 0"}}' > "$target/nemoclaw/package.json"
   exit 0
 fi
 exit 0
@@ -392,7 +392,7 @@ if [ "$1" = "clone" ]; then
   target="\${@: -1}"
   mkdir -p "$target/nemoclaw"
   echo '{"name":"nemoclaw","version":"0.1.0","dependencies":{"openclaw":"2026.3.11"}}' > "$target/package.json"
-  echo '{"name":"nemoclaw-plugin","version":"0.1.0"}' > "$target/nemoclaw/package.json"
+  echo '{"name":"nemoclaw-plugin","version":"0.1.0","scripts":{"build":"exit 0"}}' > "$target/nemoclaw/package.json"
   exit 0
 fi
 exit 0
@@ -555,7 +555,7 @@ fi`,
     fs.mkdirSync(path.join(tmp, "nemoclaw"), { recursive: true });
     fs.writeFileSync(
       path.join(tmp, "nemoclaw", "package.json"),
-      JSON.stringify({ name: "nemoclaw-plugin", version: "0.1.0" }, null, 2),
+      JSON.stringify({ name: "nemoclaw-plugin", version: "0.1.0", scripts: { build: "exit 0" } }, null, 2),
     );
 
     const result = spawnSync("bash", [INSTALLER], {
@@ -595,7 +595,7 @@ if [ "$1" = "clone" ]; then
   target="\${@: -1}"
   mkdir -p "$target/nemoclaw"
   echo '{"name":"nemoclaw","version":"0.1.0","dependencies":{"openclaw":"2026.3.11"}}' > "$target/package.json"
-  echo '{"name":"nemoclaw-plugin","version":"0.1.0"}' > "$target/nemoclaw/package.json"
+  echo '{"name":"nemoclaw-plugin","version":"0.1.0","scripts":{"build":"exit 0"}}' > "$target/nemoclaw/package.json"
   exit 0
 fi
 exit 0
@@ -658,7 +658,7 @@ if [ "$1" = "clone" ]; then
   target="\${@: -1}"
   mkdir -p "$target/nemoclaw"
   echo '{"name":"nemoclaw","version":"0.1.0","dependencies":{"openclaw":"2026.3.11"}}' > "$target/package.json"
-  echo '{"name":"nemoclaw-plugin","version":"0.1.0"}' > "$target/nemoclaw/package.json"
+  echo '{"name":"nemoclaw-plugin","version":"0.1.0","scripts":{"build":"exit 0"}}' > "$target/nemoclaw/package.json"
   exit 0
 fi
 exit 0

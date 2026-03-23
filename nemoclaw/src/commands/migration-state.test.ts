@@ -844,6 +844,7 @@ describe("commands/migration-state", () => {
         };
         addFile("/snapshots/snap1/snapshot.json", JSON.stringify(manifest));
         addDir("/snapshots/snap1/openclaw");
+        addFile("/snapshots/snap1/config/openclaw.json", "{}");
 
         const result = restoreSnapshotToHost("/snapshots/snap1", logger);
         expect(result).toBe(false);
@@ -876,6 +877,7 @@ describe("commands/migration-state", () => {
         };
         addFile("/snapshots/snap1/snapshot.json", JSON.stringify(manifest));
         addDir("/snapshots/snap1/openclaw");
+        addFile("/snapshots/snap1/config/openclaw.json", "{}");
 
         const result = restoreSnapshotToHost("/snapshots/snap1", logger);
         expect(result).toBe(false);
