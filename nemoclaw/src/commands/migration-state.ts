@@ -588,6 +588,7 @@ export function createSnapshotBundle(
     mkdirSync(parentDir, { recursive: true });
     const snapshotStateDir = path.join(parentDir, "openclaw");
     copyDirectory(hostState.stateDir, snapshotStateDir);
+    chmodSync(path.join(snapshotStateDir, "openclaw.json"), 0o600);
 
     if (hostState.configPath && hostState.hasExternalConfig) {
       const configSnapshotDir = path.join(parentDir, "config");
@@ -756,6 +757,8 @@ export function restoreSnapshotToHost(snapshotDir: string, logger: PluginLogger)
       copyFileSync(configSnapshotPath, manifest.configPath);
       chmodSync(manifest.configPath, 0o600);
       logger.info(`Restored external config to ${manifest.configPath}`);
+    } else if (manifest.configPath) {
+      chmodSync(manifest.configPath, 0o600);
     }
 
     logger.info("Host OpenClaw state restored.");
