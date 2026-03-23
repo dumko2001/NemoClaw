@@ -897,5 +897,90 @@ describe("commands/migration-state", () => {
         }
       }
     });
+
+    it("restores external roots from snapshot", () => {
+      const logger = makeLogger();
+      const origHome = process.env.HOME;
+      process.env.HOME = "/home/user";
+      try {
+        const manifest: SnapshotManifest = {
+          version: 2,
+          createdAt: "2026-03-01T00:00:00.000Z",
+          homeDir: "/home/user",
+          stateDir: "/home/user/.openclaw",
+          configPath: null,
+          hasExternalConfig: false,
+          externalRoots: [
+            {
+              id: "ws-1",
+              kind: "workspace",
+              label: "ws",
+              sourcePath: "/home/user/myws",
+              snapshotRelativePath: "external/ws-1",
+              sandboxPath: "/sandbox/.nemoclaw/migration/workspaces/ws-1",
+              symlinkPaths: [],
+              bindings: [],
+            },
+          ],
+          warnings: [],
+        };
+        addFile("/snapshots/snap1/snapshot.json", JSON.stringify(manifest));
+        addDir("/snapshots/snap1/openclaw");
+        addDir("/snapshots/snap1/external/ws-1");
+
+        // Setup existing sourcePath
+        addDir("/home/user/myws");
+        addFile("/home/user/myws/old-file.txt", "old");
+
+        const result = restoreSnapshotToHost("/snapshots/snap1", logger);
+        expect(result).toBe(true);
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.stringContaining("Restored external workspace to /home/user/myws"),
+        );
+      } finally {
+        if (origHome === undefined) {
+          delete process.env.HOME;
+        } else {
+          process.env.HOME = origHome;
+        }
+      }
+    });
+
+    it("returns false and logs error on unexpected error during restore", async () => {
+      const logger = makeLogger();
+      const origHome = process.env.HOME;
+      process.env.HOME = "/home/user";
+      try {
+        const manifest: SnapshotManifest = {
+          version: 2,
+          createdAt: "2026-03-01T00:00:00.000Z",
+          homeDir: "/home/user",
+          stateDir: "/home/user/.openclaw",
+          configPath: null,
+          hasExternalConfig: false,
+          externalRoots: [],
+          warnings: [],
+        };
+        addFile("/snapshots/snap1/snapshot.json", JSON.stringify(manifest));
+        addDir("/snapshots/snap1/openclaw");
+
+        const fs = await import("node:fs");
+        vi.mocked(fs.cpSync).mockImplementationOnce(() => {
+          throw new Error("Simulated copy error");
+        });
+
+        const result = restoreSnapshotToHost("/snapshots/snap1", logger);
+        expect(result).toBe(false);
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining("Restoration failed: Simulated copy error"),
+        );
+      } finally {
+        if (origHome === undefined) {
+          delete process.env.HOME;
+        } else {
+          process.env.HOME = origHome;
+        }
+      }
+    });
   });
 });
