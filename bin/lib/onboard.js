@@ -86,10 +86,10 @@ function hasStaleGateway(gwInfoOutput) {
   return typeof gwInfoOutput === "string" && gwInfoOutput.length > 0 && gwInfoOutput.includes("nemoclaw");
 }
 
-function streamSandboxCreate(command) {
+function streamSandboxCreate(command, env = {}) {
   const child = spawn("bash", ["-lc", command], {
     cwd: ROOT,
-    env: process.env,
+    env: { ...process.env, ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -555,19 +555,25 @@ async function createSandbox(gpu) {
 
   console.log(`  Creating sandbox '${sandboxName}' (this takes a few minutes on first run)...`);
   const chatUiUrl = process.env.CHAT_UI_URL || 'http://127.0.0.1:18789';
-  const envArgs = [`CHAT_UI_URL=${shellQuote(chatUiUrl)}`];
+  const envVars = { CHAT_UI_URL: chatUiUrl };
+  const envArgs = ["CHAT_UI_URL=$CHAT_UI_URL"];
+
   const nvKey = getCredential("NVIDIA_API_KEY");
   if (nvKey) {
-    envArgs.push(`NVIDIA_API_KEY=${shellQuote(nvKey)}`);
-
+    envVars.NVIDIA_API_KEY = nvKey;
+    envArgs.push("NVIDIA_API_KEY=$NVIDIA_API_KEY");
   }
+
   const discordToken = getCredential("DISCORD_BOT_TOKEN") || process.env.DISCORD_BOT_TOKEN;
   if (discordToken) {
-    envArgs.push(`DISCORD_BOT_TOKEN=${shellQuote(discordToken)}`);
+    envVars.DISCORD_BOT_TOKEN = discordToken;
+    envArgs.push("DISCORD_BOT_TOKEN=$DISCORD_BOT_TOKEN");
   }
+
   const slackToken = getCredential("SLACK_BOT_TOKEN") || process.env.SLACK_BOT_TOKEN;
   if (slackToken) {
-    envArgs.push(`SLACK_BOT_TOKEN=${shellQuote(slackToken)}`);
+    envVars.SLACK_BOT_TOKEN = slackToken;
+    envArgs.push("SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN");
   }
 
   // Run without piping through awk — the pipe masked non-zero exit codes
@@ -575,7 +581,8 @@ async function createSandbox(gpu) {
   // command (awk, always 0) unless pipefail is set. Removing the pipe
   // lets the real exit code flow through to run().
   const createResult = await streamSandboxCreate(
-    `openshell sandbox create ${createArgs.join(" ")} -- env ${envArgs.join(" ")} nemoclaw-start 2>&1`
+    `openshell sandbox create ${createArgs.join(" ")} -- env ${envArgs.join(" ")} nemoclaw-start 2>&1`,
+    envVars
   );
 
   // Clean up build context regardless of outcome
