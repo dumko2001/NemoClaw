@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import path from "node:path";
 import type { PluginLogger } from "../index.js";
 
 // ---------------------------------------------------------------------------
@@ -28,12 +29,28 @@ function addSymlink(p: string): void {
 }
 
 vi.mock("node:fs", async (importOriginal) => {
-  const original = await importOriginal();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const original = (await importOriginal()) as any;
   return {
     ...original,
     existsSync: (p: string) => store.has(p),
-    mkdirSync: vi.fn((p: string) => {
-      addDir(p);
+    mkdirSync: vi.fn((p: string, options?: { recursive?: boolean }) => {
+      if (options?.recursive) {
+        let current = "";
+        const parts = p.split("/");
+        for (const part of parts) {
+          if (!part && !current) {
+            current = "/";
+            continue;
+          }
+          current = path.join(current, part);
+          if (!store.has(current)) {
+            addDir(current);
+          }
+        }
+      } else {
+        addDir(p);
+      }
     }),
     readFileSync: (p: string) => {
       const entry = store.get(p);
@@ -43,14 +60,16 @@ vi.mock("node:fs", async (importOriginal) => {
     writeFileSync: vi.fn((p: string, data: string) => {
       store.set(p, { type: "file", content: data });
     }),
+    chmodSync: vi.fn(),
     copyFileSync: vi.fn((src: string, dest: string) => {
       const entry = store.get(src);
       if (!entry) throw new Error(`ENOENT: ${src}`);
       store.set(dest, { ...entry });
     }),
     cpSync: vi.fn((src: string, dest: string) => {
-      // Shallow copy: copy all entries whose path starts with src
-      for (const [k, v] of store) {
+      // Recursive copy: find all entries starting with src
+      const entries = [...store.entries()];
+      for (const [k, v] of entries) {
         if (k === src || k.startsWith(src + "/")) {
           const relative = k.slice(src.length);
           store.set(dest + relative, { ...v });
@@ -59,7 +78,8 @@ vi.mock("node:fs", async (importOriginal) => {
     }),
     rmSync: vi.fn(),
     renameSync: vi.fn((oldPath: string, newPath: string) => {
-      for (const [k, v] of store) {
+      const entries = [...store.entries()];
+      for (const [k, v] of entries) {
         if (k === oldPath || k.startsWith(oldPath + "/")) {
           const relative = k.slice(oldPath.length);
           store.set(newPath + relative, v);
