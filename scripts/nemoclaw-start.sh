@@ -35,9 +35,13 @@ json.dump({
 }, open(path, 'w'))
 os.chmod(path, 0o600)
 PYAUTH
+}
 
-  # Enforce 600 for all auth profiles across all agents
-  find ~/.openclaw -name "auth-profiles.json" -exec chmod 600 {} + 2>/dev/null || true
+harden_auth_profiles() {
+  if [ -d "${HOME}/.openclaw" ]; then
+    # Enforce 600 for all auth profiles across all agents
+    find -L "${HOME}/.openclaw" -type f -name "auth-profiles.json" -exec chmod 600 {} + 2>/dev/null || true
+  fi
 }
 
 print_dashboard_urls() {
@@ -137,6 +141,7 @@ echo 'Setting up NemoClaw...'
 # (Dockerfile Step 28). At runtime they fail with EPERM against the locked
 # /sandbox/.openclaw directory and accomplish nothing.
 write_auth_profile
+harden_auth_profiles
 
 if [ ${#NEMOCLAW_CMD[@]} -gt 0 ]; then
   exec "${NEMOCLAW_CMD[@]}"
