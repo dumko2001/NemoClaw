@@ -101,9 +101,9 @@ if ! command -v openshell >/dev/null 2>&1; then
     --pattern "$ASSET" --dir "$tmpdir"
 
   # Verify checksum
-  if command -v sha256sum > /dev/null 2>&1; then
+  if command -v sha256sum >/dev/null 2>&1; then
     echo "${EXPECTED_SHA}  $tmpdir/$ASSET" | sha256sum -c -
-  elif command -v shasum > /dev/null 2>&1; then
+  elif command -v shasum >/dev/null 2>&1; then
     echo "${EXPECTED_SHA}  $tmpdir/$ASSET" | shasum -a 256 -c -
   else
     fail "sha256sum or shasum not found. Cannot verify binary integrity."
