@@ -270,6 +270,25 @@ function showStatus() {
 }
 
 function listSandboxes(args = []) {
+  const allowedArgs = new Set(["--json", "--help", "-h"]);
+  const unknownArgs = args.filter((arg) => !allowedArgs.has(arg));
+  if (unknownArgs.length > 0) {
+    console.error(`  Unknown list option(s): ${unknownArgs.join(", ")}`);
+    console.error("  Usage: nemoclaw list [--json]");
+    process.exit(1);
+  }
+
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log("");
+    console.log("  Usage: nemoclaw list [options]");
+    console.log("");
+    console.log("  Options:");
+    console.log("    --json        Output list as JSON");
+    console.log("    --help, -h    Show this help");
+    console.log("");
+    return;
+  }
+
   const json = args.includes("--json");
   const { sandboxes, defaultSandbox } = registry.listSandboxes();
 
@@ -409,7 +428,7 @@ function help() {
     nemoclaw setup-spark             Set up on DGX Spark ${D}(fixes cgroup v2 + Docker)${R}
 
   ${G}Sandbox Management:${R}
-    ${B}nemoclaw list${R}                    List all sandboxes
+    ${B}nemoclaw list${R}                    List all sandboxes ${D}(--json for machine-readable)${R}
     nemoclaw <name> connect          Shell into a running sandbox
     nemoclaw <name> status           Sandbox health + NIM status
     nemoclaw <name> logs ${D}[--follow]${R}  Stream sandbox logs
