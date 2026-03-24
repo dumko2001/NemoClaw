@@ -2,9 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, lstatSync } from "node:fs";
 import { join } from "node:path";
-import type { BlueprintManifest } from "./resolve.js";
+export interface BlueprintManifest {
+  version: string;
+  minOpenShellVersion: string;
+  minOpenClawVersion: string;
+  profiles: string[];
+  digest: string;
+}
 
 export interface VerificationResult {
   valid: boolean;
@@ -59,15 +65,25 @@ export function checkCompatibility(
 }
 
 function satisfiesMinVersion(actual: string, minimum: string): boolean {
-  const aParts = actual.split(".").map(Number);
-  const mParts = minimum.split(".").map(Number);
+  // Simple numeric-first comparison that handles pre-release tags like 1.0.0-beta
+  // by treating the non-numeric part as lower than a version without one.
+  const aBase = actual.split("-")[0];
+  const mBase = minimum.split("-")[0];
+  const aParts = (aBase || "0").split(".").map(Number);
+  const mParts = (mBase || "0").split(".").map(Number);
+
   for (let i = 0; i < Math.max(aParts.length, mParts.length); i++) {
     const a = aParts[i] ?? 0;
     const m = mParts[i] ?? 0;
     if (a > m) return true;
     if (a < m) return false;
   }
-  return true; // equal
+
+  // If numeric parts are equal, a pre-release version is lower than a release version
+  if (actual.includes("-") && !minimum.includes("-")) return false;
+  if (!actual.includes("-") && minimum.includes("-")) return true;
+
+  return true; // equal or both have suffixes (simplified)
 }
 
 function computeDirectoryDigest(dirPath: string): string {
@@ -80,13 +96,7 @@ function computeDirectoryDigest(dirPath: string): string {
   return hash.digest("hex");
 }
 
-const IGNORE_PATTERNS = [
-  ".git",
-  "node_modules",
-  "__pycache__",
-  ".DS_Store",
-  "dist",
-];
+const IGNORE_PATTERNS = [".git", "node_modules", "__pycache__", ".DS_Store", "dist"];
 
 function collectFiles(dirPath: string, prefix = ""): string[] {
   const entries = readdirSync(dirPath);
@@ -96,7 +106,11 @@ function collectFiles(dirPath: string, prefix = ""): string[] {
 
     const fullPath = join(dirPath, entry);
     const relativePath = prefix ? `${prefix}/${entry}` : entry;
-    const stat = statSync(fullPath);
+    const stat = lstatSync(fullPath);
+    if (stat.isSymbolicLink()) {
+      // Security: Skip symlinks to prevent infinite recursion and directory escapes.
+      continue;
+    }
     if (stat.isDirectory()) {
       files.push(...collectFiles(fullPath, relativePath));
     } else {
