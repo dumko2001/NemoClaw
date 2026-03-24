@@ -323,7 +323,7 @@ install_openshell() {
     return 0
   fi
 
-  OPENSHELL_VERSION="v0.0.8"
+  OPENSHELL_VERSION="v0.0.14"
   info "Installing openshell CLI (${OPENSHELL_VERSION})..."
 
   case "$OS" in
@@ -331,7 +331,7 @@ install_openshell() {
       case "$ARCH_LABEL" in
         aarch64)
           ASSET="openshell-aarch64-apple-darwin.tar.gz"
-          EXPECTED_SHA="8b0945ad046b48b9f1b82d14f45c68c7a9ab6138af27778a644193a9973e0048"
+          EXPECTED_SHA="f05699b74a9c60f105b7af9224f268f126256196d066de91b423bfa5be066eca"
           ;;
         *)
           fail "OpenShell ${OPENSHELL_VERSION} does not support Intel-based Macs (x86_64). Please use an Apple Silicon Mac or build OpenShell from source."
@@ -342,21 +342,27 @@ install_openshell() {
       case "$ARCH_LABEL" in
         x86_64)
           ASSET="openshell-x86_64-unknown-linux-musl.tar.gz"
-          EXPECTED_SHA="203a4732b8a8974c4f612132ea0325f2a1b298dff0fe639dc8f9aff4f26f8cc3"
+          EXPECTED_SHA="f34acf072452180adc872db207eec16f2aa77b6e2723c7456677c281d7d1d9d6"
           ;;
         aarch64)
           ASSET="openshell-aarch64-unknown-linux-musl.tar.gz"
-          EXPECTED_SHA="e5efa57bf80bbc8fce4d47cc7f7fc7ccaaa65d57e9cca8094e1cd72c0a7ff72e"
+          EXPECTED_SHA="6c70bd3112ba6524c16718b0ba37474238011d74c694b2f18aa6003da13128a5"
           ;;
       esac
       ;;
   esac
 
   tmpdir="$(mktemp -d)"
+  local DOWNLOAD_SUCCESS=0
+
   if command -v gh >/dev/null 2>&1; then
-    GH_TOKEN="${GITHUB_TOKEN:-}" gh release download "${OPENSHELL_VERSION}" --repo NVIDIA/OpenShell \
-      --pattern "$ASSET" --dir "$tmpdir"
-  else
+    if GH_TOKEN="${GITHUB_TOKEN:-}" gh release download "${OPENSHELL_VERSION}" --repo NVIDIA/OpenShell \
+      --pattern "$ASSET" --dir "$tmpdir"; then
+      DOWNLOAD_SUCCESS=1
+    fi
+  fi
+
+  if [ "$DOWNLOAD_SUCCESS" -eq 0 ]; then
     # Fallback: curl pinned release
     curl -fsSL "https://github.com/NVIDIA/OpenShell/releases/download/${OPENSHELL_VERSION}/$ASSET" \
       -o "$tmpdir/$ASSET"

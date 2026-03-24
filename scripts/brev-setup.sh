@@ -77,7 +77,7 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 
 # --- 3. openshell CLI (binary release, not pip) ---
-OPENSHELL_VERSION="v0.0.8"
+OPENSHELL_VERSION="v0.0.14"
 if ! command -v openshell >/dev/null 2>&1; then
   info "Installing openshell CLI (${OPENSHELL_VERSION})..."
   if ! command -v gh >/dev/null 2>&1; then
@@ -88,17 +88,29 @@ if ! command -v openshell >/dev/null 2>&1; then
   case "$ARCH" in
     x86_64 | amd64)
       ASSET="openshell-x86_64-unknown-linux-musl.tar.gz"
-      EXPECTED_SHA="203a4732b8a8974c4f612132ea0325f2a1b298dff0fe639dc8f9aff4f26f8cc3"
+      EXPECTED_SHA="f34acf072452180adc872db207eec16f2aa77b6e2723c7456677c281d7d1d9d6"
       ;;
     aarch64 | arm64)
       ASSET="openshell-aarch64-unknown-linux-musl.tar.gz"
-      EXPECTED_SHA="e5efa57bf80bbc8fce4d47cc7f7fc7ccaaa65d57e9cca8094e1cd72c0a7ff72e"
+      EXPECTED_SHA="6c70bd3112ba6524c16718b0ba37474238011d74c694b2f18aa6003da13128a5"
       ;;
     *) fail "Unsupported architecture: $ARCH" ;;
   esac
   tmpdir="$(mktemp -d)"
-  GH_TOKEN="${GITHUB_TOKEN:-}" gh release download "$OPENSHELL_VERSION" --repo NVIDIA/OpenShell \
-    --pattern "$ASSET" --dir "$tmpdir"
+  DOWNLOAD_SUCCESS=0
+
+  if command -v gh >/dev/null 2>&1; then
+    if GH_TOKEN="${GITHUB_TOKEN:-}" gh release download "$OPENSHELL_VERSION" --repo NVIDIA/OpenShell \
+      --pattern "$ASSET" --dir "$tmpdir"; then
+      DOWNLOAD_SUCCESS=1
+    fi
+  fi
+
+  if [ "$DOWNLOAD_SUCCESS" -eq 0 ]; then
+    # Fallback: curl pinned release
+    curl -fsSL "https://github.com/NVIDIA/OpenShell/releases/download/${OPENSHELL_VERSION}/$ASSET" \
+      -o "$tmpdir/$ASSET"
+  fi
 
   # Verify checksum
   if command -v sha256sum >/dev/null 2>&1; then
