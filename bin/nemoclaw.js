@@ -110,12 +110,9 @@ async function deploy(instanceName) {
     console.error("    nemoclaw deploy nemoclaw-test");
     process.exit(1);
   }
-
-  const env = { ...process.env };
-  env.NVIDIA_API_KEY = await ensureApiKey();
-
+  await ensureApiKey();
   if (isRepoPrivate("NVIDIA/OpenShell")) {
-    env.GITHUB_TOKEN = await ensureGithubToken();
+    await ensureGithubToken();
   }
   validateName(instanceName, "instance name");
   const name = instanceName;
@@ -144,12 +141,12 @@ async function deploy(instanceName) {
 
   if (!exists) {
     console.log(`  Creating Brev instance '${name}' (${gpu})...`);
-    run(`brev create ${qname} --gpu ${shellQuote(gpu)}`, { env });
+    run(`brev create ${qname} --gpu ${shellQuote(gpu)}`);
   } else {
     console.log(`  Brev instance '${name}' already exists.`);
   }
 
-  run(`brev refresh`, { ignoreError: true, env });
+  run(`brev refresh`, { ignoreError: true });
 
   process.stdout.write(`  Waiting for SSH `);
   for (let i = 0; i < 60; i++) {
@@ -172,8 +169,8 @@ async function deploy(instanceName) {
   run(`ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR ${qname} 'mkdir -p /home/ubuntu/nemoclaw'`);
   run(`rsync -az --delete --exclude node_modules --exclude .git --exclude src -e "ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR" "${ROOT}/scripts" "${ROOT}/Dockerfile" "${ROOT}/nemoclaw" "${ROOT}/nemoclaw-blueprint" "${ROOT}/bin" "${ROOT}/package.json" ${qname}:/home/ubuntu/nemoclaw/`);
 
-  const envLines = [`NVIDIA_API_KEY=${shellQuote(env.NVIDIA_API_KEY || "")}`];
-  const ghToken = env.GITHUB_TOKEN;
+  const envLines = [`NVIDIA_API_KEY=${shellQuote(process.env.NVIDIA_API_KEY || "")}`];
+  const ghToken = process.env.GITHUB_TOKEN;
   if (ghToken) envLines.push(`GITHUB_TOKEN=${shellQuote(ghToken)}`);
   const tgToken = getCredential("TELEGRAM_BOT_TOKEN");
   if (tgToken) envLines.push(`TELEGRAM_BOT_TOKEN=${shellQuote(tgToken)}`);

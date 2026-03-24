@@ -558,12 +558,6 @@ async function createSandbox(gpu) {
   const envVars = { CHAT_UI_URL: chatUiUrl };
   const envArgs = ["CHAT_UI_URL=$CHAT_UI_URL"];
 
-  const nvKey = getCredential("NVIDIA_API_KEY");
-  if (nvKey) {
-    envVars.NVIDIA_API_KEY = nvKey;
-    envArgs.push("NVIDIA_API_KEY=$NVIDIA_API_KEY");
-  }
-
   const discordToken = getCredential("DISCORD_BOT_TOKEN") || process.env.DISCORD_BOT_TOKEN;
   if (discordToken) {
     envVars.DISCORD_BOT_TOKEN = discordToken;
