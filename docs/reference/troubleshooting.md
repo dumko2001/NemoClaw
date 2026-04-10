@@ -2,7 +2,9 @@
 title:
   page: "NemoClaw Troubleshooting Guide"
   nav: "Troubleshooting"
-description: "Diagnose and resolve common NemoClaw installation, onboarding, and runtime issues."
+description:
+  main: "Diagnose and resolve common NemoClaw installation, onboarding, and runtime issues."
+  agent: "Diagnoses and resolves common NemoClaw installation, onboarding, and runtime issues. Use when troubleshooting errors, debugging sandbox problems, or resolving setup failures."
 keywords: ["nemoclaw troubleshooting", "nemoclaw debug sandbox issues"]
 topics: ["generative_ai", "ai_agents"]
 tags: ["openclaw", "openshell", "troubleshooting", "nemoclaw"]
@@ -42,27 +44,32 @@ Run `source ~/.bashrc` (or `source ~/.zshrc` for zsh), or open a new terminal wi
 ### Installer fails on unsupported platform
 
 The installer checks for a supported OS and architecture before proceeding.
-NemoClaw requires Linux Ubuntu 22.04 LTS or later.
-If you see an unsupported platform error, verify that you are running on a supported Linux distribution.
+If you see an unsupported platform error, verify that you are running on a tested platform listed in the Container Runtimes table in the quickstart guide.
 
 ### Node.js version is too old
 
-NemoClaw requires Node.js 20 or later.
+NemoClaw requires Node.js 22.16 or later.
 If the installer exits with a Node.js version error, check your current version:
 
 ```console
 $ node --version
 ```
 
-If the version is below 20, install a supported release.
+If the version is below 22.16, install a supported release.
 If you use nvm, run:
 
 ```console
-$ nvm install 20
-$ nvm use 20
+$ nvm install 22
+$ nvm use 22
 ```
 
 Then re-run the installer.
+
+### Image push fails with out-of-memory errors
+
+The sandbox image is approximately 2.4 GB compressed. During image push, the Docker daemon, k3s, and the OpenShell gateway run alongside the export pipeline, which buffers decompressed layers in memory. On machines with less than 8 GB of RAM, this combined usage can trigger the OOM killer.
+
+If you cannot add memory, configure at least 8 GB of swap to work around the issue at the cost of slower performance.
 
 ### Docker is not running
 
@@ -74,6 +81,36 @@ $ sudo systemctl start docker
 ```
 
 On macOS with Docker Desktop, open the Docker Desktop application and wait for it to finish starting before retrying.
+
+### Docker permission denied on Linux
+
+On Linux, if the Docker daemon is running but you see "permission denied" errors, your user may not be in the `docker` group.
+Add your user and activate the group in the current shell:
+
+```console
+$ sudo usermod -aG docker $USER
+$ newgrp docker
+```
+
+Then retry `nemoclaw onboard`.
+
+### macOS first-run failures
+
+The two most common first-run failures on macOS are missing developer tools and Docker connection errors.
+
+To avoid these issues, install the prerequisites in the following order before running the NemoClaw installer:
+
+1. Install Xcode Command Line Tools (`xcode-select --install`). These are needed by the installer and Node.js toolchain.
+2. Install and start a supported container runtime (Docker Desktop or Colima). Without a running runtime, the installer cannot connect to Docker.
+
+### Permission errors during installation
+
+The NemoClaw installer does not require `sudo` or root.
+It installs Node.js via nvm and NemoClaw via npm, both into user-local directories.
+The installer also handles OpenShell installation automatically using a pinned release.
+
+If you see permission errors during installation, they typically come from Docker, not the NemoClaw installer itself.
+Docker must be installed and running before you run the installer, and installing Docker may require elevated privileges on Linux.
 
 ### npm install fails with permission errors
 
@@ -95,7 +132,7 @@ If another process is already bound to this port, onboarding fails.
 Identify the conflicting process, verify it is safe to stop, and terminate it:
 
 ```console
-$ lsof -i :18789
+$ sudo lsof -i :18789
 $ kill <PID>
 ```
 
@@ -106,15 +143,17 @@ Then retry onboarding.
 
 ### Cgroup v2 errors during onboard
 
-On Ubuntu 24.04, DGX Spark, and WSL2, Docker may not be configured for cgroup v2 delegation.
-The onboard preflight check detects this and fails with a clear error message.
+Older NemoClaw releases relied on a Docker cgroup workaround on Ubuntu 24.04, DGX Spark, and WSL2.
+Current OpenShell releases handle that behavior themselves, so NemoClaw no longer requires a Spark-specific setup step.
 
-Run the Spark setup script to fix the Docker cgroup configuration, then retry onboarding:
+If onboarding reports that Docker is missing or unreachable, fix Docker first and retry onboarding:
 
 ```console
-$ sudo nemoclaw setup-spark
 $ nemoclaw onboard
 ```
+
+Podman is not a tested runtime.
+If onboarding or sandbox lifecycle fails, switch to a tested runtime (Docker Desktop, Colima, or Docker Engine) and rerun onboarding.
 
 ### Invalid sandbox name
 
@@ -141,7 +180,75 @@ If neither is found, verify that Colima is running:
 $ colima status
 ```
 
+### Sandbox creation killed by OOM (exit 137)
+
+On systems with 8 GB RAM or less and no swap configured, the sandbox image push can exhaust available memory and get killed by the Linux OOM killer (exit code 137).
+
+NemoClaw automatically detects low memory during onboarding and prompts to create a 4 GB swap file.
+If this automatic step fails or you are using a custom setup flow, create swap manually before running `nemoclaw onboard`:
+
+```console
+$ sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 status=none
+$ sudo chmod 600 /swapfile
+$ sudo mkswap /swapfile
+$ sudo swapon /swapfile
+$ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+$ nemoclaw onboard
+```
+
 ## Runtime
+
+### Reconnect after a host reboot
+
+After a host reboot, the container runtime, OpenShell gateway, and sandbox may not be running.
+Follow these steps to reconnect.
+
+1. Start the container runtime.
+
+   - **Linux:** start Docker if it is not already running (`sudo systemctl start docker`)
+   - **macOS:** open Docker Desktop or start Colima (`colima start`)
+
+1. Check sandbox state.
+
+   ```console
+   $ openshell sandbox list
+   ```
+
+   If the sandbox shows `Ready`, skip to step 4.
+
+1. Restart the gateway (if needed).
+
+   If the sandbox is not listed or the command fails, restart the OpenShell gateway:
+
+   ```console
+   $ openshell gateway start --name nemoclaw
+   ```
+
+   Wait a few seconds, then re-check with `openshell sandbox list`.
+
+1. Reconnect.
+
+   ```console
+   $ nemoclaw <name> connect
+   ```
+
+1. Start host auxiliary services (if needed).
+
+   If you use the cloudflared tunnel started by `nemoclaw start`, start it again:
+
+   ```console
+   $ nemoclaw start
+   ```
+
+   Telegram, Discord, and Slack are handled by OpenShell-managed channel messaging configured at onboarding, not by a separate bridge process from `nemoclaw start`.
+
+:::{admonition} If the sandbox does not recover
+:class: warning
+
+If the sandbox remains missing after restarting the gateway, run `nemoclaw onboard` to recreate it.
+The wizard prompts for confirmation before destroying an existing sandbox. If you confirm, it **destroys and recreates** the sandbox. Workspace files (SOUL.md, USER.md, IDENTITY.md, AGENTS.md, MEMORY.md, and daily memory notes) are lost.
+Back up your workspace first by following the instructions at [Back Up and Restore](../workspace/backup-restore.md).
+:::
 
 ### Sandbox shows as stopped
 
@@ -165,7 +272,45 @@ Check the active provider and endpoint:
 $ nemoclaw <name> status
 ```
 
-If the endpoint is correct but requests still fail, check for network policy rules that may block the connection, and verify that your NVIDIA API key is valid.
+If the endpoint is correct but requests still fail, check for network policy rules that may block the connection.
+Then verify the credential and base URL for the provider you selected during onboarding.
+
+For local providers (Ollama, vLLM, NIM), the default timeout is 180 seconds.
+If large prompts still cause timeouts, increase it with `NEMOCLAW_LOCAL_INFERENCE_TIMEOUT` before re-running onboard:
+
+```console
+$ export NEMOCLAW_LOCAL_INFERENCE_TIMEOUT=300
+$ nemoclaw onboard
+```
+
+### `NEMOCLAW_DISABLE_DEVICE_AUTH=1` does not change an existing sandbox
+
+This is expected behavior.
+`NEMOCLAW_DISABLE_DEVICE_AUTH` is a build-time setting used when NemoClaw creates the sandbox image.
+Changing or exporting it later does not rewrite the baked `openclaw.json` inside an existing sandbox.
+
+If you need a different device-auth setting, rerun onboarding so NemoClaw rebuilds the sandbox image with the desired configuration.
+For the security trade-offs, refer to [Security Best Practices](../security/best-practices.md).
+
+### Sandbox lost after gateway restart
+
+Sandboxes created with OpenShell versions older than 0.0.24 can become unreachable after a gateway restart because SSH secrets were not persisted.
+Running `nemoclaw onboard` automatically upgrades OpenShell to 0.0.24 or later during the preflight check.
+After the upgrade, recreate the sandbox with `nemoclaw onboard`.
+
+### Agent cannot reach external hosts through a proxy
+
+NemoClaw uses a default proxy address of `10.200.0.1:3128` (the OpenShell-injected gateway).
+If your environment uses a different proxy, set `NEMOCLAW_PROXY_HOST` and `NEMOCLAW_PROXY_PORT` before onboarding:
+
+```console
+$ export NEMOCLAW_PROXY_HOST=proxy.example.com
+$ export NEMOCLAW_PROXY_PORT=8080
+$ nemoclaw onboard
+```
+
+These are build-time settings baked into the sandbox image.
+Changing them after onboarding requires re-running `nemoclaw onboard` to rebuild the image.
 
 ### Agent cannot reach an external host
 
@@ -188,3 +333,9 @@ $ nemoclaw <name> logs
 ```
 
 Use `--follow` to stream logs in real time while debugging.
+
+## Podman
+
+Podman is not a tested runtime.
+OpenShell officially documents Docker-based runtimes only.
+If you encounter issues with Podman, switch to a tested runtime (Docker Engine, Docker Desktop, or Colima) and rerun onboarding.
